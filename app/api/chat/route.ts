@@ -41,7 +41,7 @@ David's contact info (email, LinkedIn, GitHub) is in the contact section of his 
 - If asked for contact details, point to the contact section.`;
 
 // ---------------------------------------------------------------------------
-// Visitor context block — appended to system prompt when known info exists
+// Visitor context block
 // ---------------------------------------------------------------------------
 function buildVisitorContext(visitor: {
   name: string | null;
@@ -62,7 +62,7 @@ function buildVisitorContext(visitor: {
 }
 
 // ---------------------------------------------------------------------------
-// Lightweight keyword-based topic label
+// Topic inference — keyword-based, no AI call
 // ---------------------------------------------------------------------------
 function inferTopic(message: string): string {
   const m = message.toLowerCase();
@@ -78,7 +78,7 @@ function inferTopic(message: string): string {
 }
 
 // ---------------------------------------------------------------------------
-// Rolling summary — topic tracking only, no second AI call
+// Rolling summary — topic tracking only, no AI call
 // ---------------------------------------------------------------------------
 function buildUpdatedSummary(existing: string | null, topic: string): string {
   if (topic === "General") return existing ?? "";
@@ -88,9 +88,7 @@ function buildUpdatedSummary(existing: string | null, topic: string): string {
     ? topicsMatch[1].split(",").map((t) => t.trim()).filter(Boolean)
     : [];
 
-  if (!existingTopics.includes(topic)) {
-    existingTopics.push(topic);
-  }
+  if (!existingTopics.includes(topic)) existingTopics.push(topic);
 
   const topicsPart = `Topics: ${existingTopics.join(", ")}`;
   const rest = existing?.replace(/Topics: [^|]+\|?/, "").trim() ?? "";
@@ -98,8 +96,7 @@ function buildUpdatedSummary(existing: string | null, topic: string): string {
 }
 
 // ---------------------------------------------------------------------------
-// Identity extraction — runs on EVERY user message before DB update
-// Patterns are case-insensitive; names are title-cased on capture.
+// Identity extraction — pure function, runs before any DB operation
 // ---------------------------------------------------------------------------
 function extractIdentity(message: string): {
   name?: string;
@@ -112,16 +109,12 @@ function extractIdentity(message: string): {
   const emailMatch = message.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
   if (emailMatch) result.email = emailMatch[0].toLowerCase();
 
-  // Name — case-insensitive match, then title-case the captured value.
-  // The optional second word explicitly excludes common conjunctions/prepositions
-  // so "my name is David and I work" captures "David" not "David And".
+  // Name — case-insensitive; excludes conjunctions from the optional second word
   const nameMatch = message.match(
     /(?:my name is|i'm|i am|call me)\s+([A-Za-z]+(?:\s+(?!and\b|or\b|but\b|at\b|from\b|with\b|for\b|you\b)[A-Za-z]+)?)/i
   );
   if (nameMatch) {
-    result.name = nameMatch[1]
-      .trim()
-      .replace(/\b[a-z]/g, (c) => c.toUpperCase());
+    result.name = nameMatch[1].trim().replace(/\b[a-z]/g, (c) => c.toUpperCase());
   }
 
   // Company — explicit common phrases, case-insensitive
@@ -208,9 +201,27 @@ const VISITOR_SELECT = {
 
 // ---------------------------------------------------------------------------
 // POST /api/chat
+// Execution order:
+//   1. Validate inputs
+//   2. Extract identity from message (pure, no DB)
+//   3. Find or create Visitor (extracted fields go into the CREATE)
+//   4. Update Visitor if fields differ (for returning visitors)
+//   5. Save user message
+//   6. Generate OpenAI reply
+//   7. Save assistant reply
+//   8. Update rolling summary
+//   9. Telegram notification (uses fully-updated visitor)
 // ---------------------------------------------------------------------------
 export async function POST(request: NextRequest) {
-  // 1. Parse and validate body
+  // 1. Log DATABASE_URL presence — safe check, no value exposed
+  const dbUrl = process.env.DATABASE_URL;
+  console.log(`[chat] DATABASE_URL present: ${dbUrl ? "yes" : "NO ← DB writes will fail"}`);
+  if (dbUrl) {
+    const looksLikeRailway = dbUrl.includes("railway") || dbUrl.includes(".railway.app");
+    console.log(`[chat] DATABASE_URL looks like Railway: ${looksLikeRailway ? "yes" : "no"}`);
+  }
+
+  // 2. Parse and validate request body
   let body: unknown;
   try {
     body = await request.json();
@@ -234,6 +245,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ok: false, error: "Missing 'sessionKey' field" }, { status: 400 });
   }
 
+  console.log(`[chat] request received — sessionKey=${sessionKey} message="${message.slice(0, 60)}"`);
+
   const rawHistory = Array.isArray(raw.history) ? raw.history : [];
   const history: HistoryEntry[] = rawHistory
     .filter(
@@ -250,77 +263,77 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ok: false, error: "OpenAI API key is not configured" }, { status: 500 });
   }
 
-  console.log(`[chat] sessionKey=${sessionKey} message="${message.slice(0, 60)}"`);
+  // 3. Extract identity — BEFORE any DB operation so it can populate the initial create
+  const identity = extractIdentity(message);
+  console.log(`[chat] extracted identity — name=${identity.name ?? "none"} email=${identity.email ?? "none"} company=${identity.company ?? "none"}`);
 
-  // ---------------------------------------------------------------------------
-  // 2. Find or create visitor
-  // ---------------------------------------------------------------------------
+  // 4. Find or create Visitor — extracted fields included in the create payload
   let visitor: VisitorRecord | null = null;
 
   try {
     visitor = await prisma.visitor.upsert({
       where: { sessionKey },
-      create: { sessionKey },
+      create: {
+        sessionKey,
+        name: identity.name ?? null,
+        email: identity.email ?? null,
+        company: identity.company ?? null,
+      },
       update: { lastSeenAt: new Date() },
       select: VISITOR_SELECT,
     });
-    console.log(`[chat] visitor ${visitor.id} — name=${visitor.name ?? "null"} email=${visitor.email ?? "null"} company=${visitor.company ?? "null"}`);
+    console.log(
+      `[chat] visitor ${visitor.id} — name=${visitor.name ?? "null"} ` +
+      `email=${visitor.email ?? "null"} company=${visitor.company ?? "null"}`
+    );
   } catch (err) {
-    console.error("[chat] DB: failed to upsert visitor", err);
+    console.error("[chat] DB ERROR: visitor upsert failed:", String(err));
   }
 
-  // ---------------------------------------------------------------------------
-  // 3. Save user message
-  // ---------------------------------------------------------------------------
+  // 5. Update Visitor if returning visitor is missing fields we just extracted
+  if (visitor) {
+    const update: { name?: string; email?: string; company?: string } = {};
+    if (identity.name && !visitor.name) update.name = identity.name;
+    if (identity.email && !visitor.email) update.email = identity.email;
+    if (identity.company && !visitor.company) update.company = identity.company;
+
+    if (Object.keys(update).length > 0) {
+      try {
+        visitor = await prisma.visitor.update({
+          where: { id: visitor.id },
+          data: update,
+          select: VISITOR_SELECT,
+        });
+        console.log(
+          `[chat] visitor identity updated — name=${visitor.name ?? "null"} ` +
+          `email=${visitor.email ?? "null"} company=${visitor.company ?? "null"}`
+        );
+      } catch (err) {
+        console.error("[chat] DB ERROR: visitor identity update failed:", String(err));
+      }
+    }
+  }
+
+  // 6. Save user message
   if (visitor) {
     try {
       await prisma.conversationMessage.create({
         data: { visitorId: visitor.id, role: "user", content: message },
       });
+      console.log(`[chat] user message saved for visitor ${visitor.id}`);
     } catch (err) {
-      console.error("[chat] DB: failed to save user message", err);
+      console.error("[chat] DB ERROR: failed to save user message:", String(err));
     }
   }
 
-  // ---------------------------------------------------------------------------
-  // 4. Extract identity from user message and update visitor record
-  //    Runs unconditionally — isolated from message save above.
-  // ---------------------------------------------------------------------------
-  if (visitor) {
-    const identity = extractIdentity(message);
-    console.log("[chat] extracted identity:", identity);
-
-    const identityUpdate: { name?: string; email?: string; company?: string } = {};
-    if (identity.name && !visitor.name) identityUpdate.name = identity.name;
-    if (identity.email && !visitor.email) identityUpdate.email = identity.email;
-    if (identity.company && !visitor.company) identityUpdate.company = identity.company;
-
-    if (Object.keys(identityUpdate).length > 0) {
-      try {
-        visitor = await prisma.visitor.update({
-          where: { id: visitor.id },
-          data: identityUpdate,
-          select: VISITOR_SELECT,
-        });
-        console.log(`[chat] visitor identity updated — name=${visitor.name ?? "null"} email=${visitor.email ?? "null"} company=${visitor.company ?? "null"}`);
-      } catch (err) {
-        console.error("[chat] DB: failed to update visitor identity", err);
-      }
-    }
-  }
-
-  // ---------------------------------------------------------------------------
-  // 5. Build system prompt with up-to-date visitor context
-  // ---------------------------------------------------------------------------
+  // 7. Build system prompt with up-to-date visitor context
   let systemPrompt = BASE_SYSTEM_PROMPT;
   if (visitor) {
     const ctx = buildVisitorContext(visitor);
     if (ctx) systemPrompt += ctx;
   }
 
-  // ---------------------------------------------------------------------------
-  // 6. Generate OpenAI reply
-  // ---------------------------------------------------------------------------
+  // 8. Generate OpenAI reply
   let reply: string;
   try {
     const openai = new OpenAI({ apiKey });
@@ -338,29 +351,26 @@ export async function POST(request: NextRequest) {
       completion.choices[0]?.message?.content?.trim() ??
       "Sorry, something went wrong on my side. Please try again in a moment.";
   } catch (err) {
-    console.error("[chat] OpenAI: call failed", err);
+    console.error("[chat] OpenAI ERROR:", String(err));
     return NextResponse.json({
       ok: true,
       reply: "Sorry, something went wrong on my side. Please try again in a moment.",
     });
   }
 
-  // ---------------------------------------------------------------------------
-  // 7. Save assistant reply
-  // ---------------------------------------------------------------------------
+  // 9. Save assistant reply
   if (visitor) {
     try {
       await prisma.conversationMessage.create({
         data: { visitorId: visitor.id, role: "assistant", content: reply },
       });
+      console.log(`[chat] assistant reply saved for visitor ${visitor.id}`);
     } catch (err) {
-      console.error("[chat] DB: failed to save assistant reply", err);
+      console.error("[chat] DB ERROR: failed to save assistant reply:", String(err));
     }
   }
 
-  // ---------------------------------------------------------------------------
-  // 8. Update rolling summary (topic tracking)
-  // ---------------------------------------------------------------------------
+  // 10. Update rolling summary
   if (visitor) {
     try {
       const topic = inferTopic(message);
@@ -374,21 +384,20 @@ export async function POST(request: NextRequest) {
         console.log(`[chat] visitor summary updated — "${visitor.summary}"`);
       }
     } catch (err) {
-      console.error("[chat] DB: failed to update visitor summary", err);
+      console.error("[chat] DB ERROR: failed to update visitor summary:", String(err));
     }
   }
 
-  // ---------------------------------------------------------------------------
-  // 9. Notify David via Telegram with fully updated visitor data
-  // ---------------------------------------------------------------------------
+  // 11. Telegram — uses the fully updated visitor object
   try {
     await notifyTelegram(
       message,
       reply,
       visitor ?? { name: null, email: null, company: null, summary: null }
     );
+    console.log("[chat] Telegram notification sent");
   } catch (err) {
-    console.error("[chat] Telegram: notification failed", err);
+    console.error("[chat] Telegram ERROR:", String(err));
   }
 
   return NextResponse.json({ ok: true, reply });

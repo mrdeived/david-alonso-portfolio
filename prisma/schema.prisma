@@ -1,10 +1,12 @@
+// Prisma 7 — url lives in prisma.config.ts, not here
+
 generator client {
-  provider = "prisma-client-js"
+  provider = "prisma-client"
+  output   = "../app/generated/prisma"
 }
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
 }
 
 model Visitor {

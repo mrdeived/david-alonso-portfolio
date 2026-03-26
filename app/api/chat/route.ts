@@ -71,14 +71,14 @@ function inferTopic(message: string): string {
   if (m.includes("voice") || m.includes("assistant") || m.includes("jarvis") || m.includes("speech")) return "AI Voice Assistant";
   if (m.includes("education") || m.includes("university") || m.includes("degree") || m.includes("gpa") || m.includes("minot") || m.includes("study")) return "Education";
   if (m.includes("skill") || m.includes("stack") || m.includes("tech") || m.includes("python") || m.includes("sql") || m.includes("power bi")) return "Skills";
-  if (m.includes("job") || m.includes("role") || m.includes("hire") || m.includes("work") || m.includes("intern") || m.includes("opportunit")) return "Job Interests";
-  if (m.includes("contact") || m.includes("email") || m.includes("reach") || m.includes("linkedin")) return "Contact";
+  if (m.includes("job") || m.includes("role") || m.includes("hire") || m.includes("intern") || m.includes("opportunit")) return "Job Interests";
+  if (m.includes("contact") || m.includes("reach") || m.includes("linkedin")) return "Contact";
   if (m.includes("project") || m.includes("built") || m.includes("portfolio")) return "Projects";
   return "General";
 }
 
 // ---------------------------------------------------------------------------
-// Rolling summary update — keyword-based, no second API call
+// Rolling summary — topic tracking only, no second AI call
 // ---------------------------------------------------------------------------
 function buildUpdatedSummary(existing: string | null, topic: string): string {
   if (topic === "General") return existing ?? "";
@@ -93,14 +93,13 @@ function buildUpdatedSummary(existing: string | null, topic: string): string {
   }
 
   const topicsPart = `Topics: ${existingTopics.join(", ")}`;
-
-  // Preserve anything after the topics section (e.g. "Introduced as: ...")
   const rest = existing?.replace(/Topics: [^|]+\|?/, "").trim() ?? "";
   return rest ? `${topicsPart} | ${rest}` : topicsPart;
 }
 
 // ---------------------------------------------------------------------------
-// Lightweight identity extraction — regex only, no AI call
+// Identity extraction — runs on EVERY user message before DB update
+// Patterns are case-insensitive; names are title-cased on capture.
 // ---------------------------------------------------------------------------
 function extractIdentity(message: string): {
   name?: string;
@@ -113,20 +112,24 @@ function extractIdentity(message: string): {
   const emailMatch = message.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
   if (emailMatch) result.email = emailMatch[0].toLowerCase();
 
-  // Name: "my name is X", "I'm X", "I am X", "call me X", "this is X"
+  // Name — case-insensitive match, then title-case the captured value
   const nameMatch = message.match(
-    /(?:my name is|i'm|i am|call me|this is)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)/
+    /(?:my name is|i'm|i am|call me)\s+([A-Za-z]+(?:\s+[A-Za-z]+)?)/i
   );
-  if (nameMatch) result.name = nameMatch[1].trim();
+  if (nameMatch) {
+    result.name = nameMatch[1]
+      .trim()
+      .replace(/\b[a-z]/g, (c) => c.toUpperCase());
+  }
 
-  // Company — best effort, proper noun only
+  // Company — explicit common phrases, case-insensitive
   const companyMatch = message.match(
-    /(?:from|at|with|work(?:ing)? (?:for|at))\s+([A-Z][A-Za-z0-9\s&]+?)(?:\s*[,.]|\s+and\b|$)/
+    /(?:i\s+work\s+(?:at|for)|working\s+(?:at|for)|i'm\s+from|from)\s+([A-Za-z][A-Za-z0-9\s&]+?)(?:\s*[,.]|\s+(?:and|you|we)\b|$)/i
   );
   if (companyMatch) {
     const candidate = companyMatch[1].trim();
-    const skip = new Set(["home", "school", "work", "here", "there", "the"]);
-    if (candidate.length > 2 && !skip.has(candidate.toLowerCase())) {
+    const skip = new Set(["home", "school", "work", "here", "there", "the", "a", "an"]);
+    if (candidate.length > 1 && !skip.has(candidate.toLowerCase())) {
       result.company = candidate;
     }
   }
@@ -185,7 +188,6 @@ interface HistoryEntry {
   content: string;
 }
 
-// Shape returned by Prisma visitor queries
 type VisitorRecord = {
   id: string;
   name: string | null;
@@ -194,50 +196,42 @@ type VisitorRecord = {
   summary: string | null;
 };
 
+const VISITOR_SELECT = {
+  id: true,
+  name: true,
+  email: true,
+  company: true,
+  summary: true,
+} as const;
+
 // ---------------------------------------------------------------------------
 // POST /api/chat
 // ---------------------------------------------------------------------------
 export async function POST(request: NextRequest) {
-  // Parse body
+  // 1. Parse and validate body
   let body: unknown;
   try {
     body = await request.json();
   } catch {
-    return NextResponse.json(
-      { ok: false, error: "Invalid JSON body" },
-      { status: 400 }
-    );
+    return NextResponse.json({ ok: false, error: "Invalid JSON body" }, { status: 400 });
   }
 
   if (body === null || typeof body !== "object") {
-    return NextResponse.json(
-      { ok: false, error: "Invalid request body" },
-      { status: 400 }
-    );
+    return NextResponse.json({ ok: false, error: "Invalid request body" }, { status: 400 });
   }
 
   const raw = body as Record<string, unknown>;
 
-  // Validate message
   const message = typeof raw.message === "string" ? raw.message.trim() : null;
   if (!message) {
-    return NextResponse.json(
-      { ok: false, error: "Missing or empty 'message' field" },
-      { status: 400 }
-    );
+    return NextResponse.json({ ok: false, error: "Missing or empty 'message' field" }, { status: 400 });
   }
 
-  // Validate sessionKey
-  const sessionKey =
-    typeof raw.sessionKey === "string" ? raw.sessionKey.trim() : null;
+  const sessionKey = typeof raw.sessionKey === "string" ? raw.sessionKey.trim() : null;
   if (!sessionKey) {
-    return NextResponse.json(
-      { ok: false, error: "Missing 'sessionKey' field" },
-      { status: 400 }
-    );
+    return NextResponse.json({ ok: false, error: "Missing 'sessionKey' field" }, { status: 400 });
   }
 
-  // Parse optional conversation history (last 8 turns)
   const rawHistory = Array.isArray(raw.history) ? raw.history : [];
   const history: HistoryEntry[] = rawHistory
     .filter(
@@ -249,16 +243,16 @@ export async function POST(request: NextRequest) {
     )
     .slice(-8);
 
-  // Require OpenAI key
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) {
-    return NextResponse.json(
-      { ok: false, error: "OpenAI API key is not configured" },
-      { status: 500 }
-    );
+    return NextResponse.json({ ok: false, error: "OpenAI API key is not configured" }, { status: 500 });
   }
 
-  // --- Persist: find or create visitor, save user message ---
+  console.log(`[chat] sessionKey=${sessionKey} message="${message.slice(0, 60)}"`);
+
+  // ---------------------------------------------------------------------------
+  // 2. Find or create visitor
+  // ---------------------------------------------------------------------------
   let visitor: VisitorRecord | null = null;
 
   try {
@@ -266,28 +260,68 @@ export async function POST(request: NextRequest) {
       where: { sessionKey },
       create: { sessionKey },
       update: { lastSeenAt: new Date() },
-      select: { id: true, name: true, email: true, company: true, summary: true },
+      select: VISITOR_SELECT,
     });
-
-    await prisma.conversationMessage.create({
-      data: { visitorId: visitor.id, role: "user", content: message },
-    });
-  } catch {
-    // DB failure is non-fatal — continue to generate reply
+    console.log(`[chat] visitor ${visitor.id} — name=${visitor.name ?? "null"} email=${visitor.email ?? "null"} company=${visitor.company ?? "null"}`);
+  } catch (err) {
+    console.error("[chat] DB: failed to upsert visitor", err);
   }
 
-  // --- Build system prompt with optional visitor context ---
+  // ---------------------------------------------------------------------------
+  // 3. Save user message
+  // ---------------------------------------------------------------------------
+  if (visitor) {
+    try {
+      await prisma.conversationMessage.create({
+        data: { visitorId: visitor.id, role: "user", content: message },
+      });
+    } catch (err) {
+      console.error("[chat] DB: failed to save user message", err);
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // 4. Extract identity from user message and update visitor record
+  //    Runs unconditionally — isolated from message save above.
+  // ---------------------------------------------------------------------------
+  if (visitor) {
+    const identity = extractIdentity(message);
+    console.log("[chat] extracted identity:", identity);
+
+    const identityUpdate: { name?: string; email?: string; company?: string } = {};
+    if (identity.name && !visitor.name) identityUpdate.name = identity.name;
+    if (identity.email && !visitor.email) identityUpdate.email = identity.email;
+    if (identity.company && !visitor.company) identityUpdate.company = identity.company;
+
+    if (Object.keys(identityUpdate).length > 0) {
+      try {
+        visitor = await prisma.visitor.update({
+          where: { id: visitor.id },
+          data: identityUpdate,
+          select: VISITOR_SELECT,
+        });
+        console.log(`[chat] visitor identity updated — name=${visitor.name ?? "null"} email=${visitor.email ?? "null"} company=${visitor.company ?? "null"}`);
+      } catch (err) {
+        console.error("[chat] DB: failed to update visitor identity", err);
+      }
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // 5. Build system prompt with up-to-date visitor context
+  // ---------------------------------------------------------------------------
   let systemPrompt = BASE_SYSTEM_PROMPT;
   if (visitor) {
     const ctx = buildVisitorContext(visitor);
     if (ctx) systemPrompt += ctx;
   }
 
-  // --- Generate OpenAI reply ---
+  // ---------------------------------------------------------------------------
+  // 6. Generate OpenAI reply
+  // ---------------------------------------------------------------------------
   let reply: string;
   try {
     const openai = new OpenAI({ apiKey });
-
     const completion = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       temperature: 0.6,
@@ -298,75 +332,61 @@ export async function POST(request: NextRequest) {
         { role: "user", content: message },
       ],
     });
-
     reply =
       completion.choices[0]?.message?.content?.trim() ??
       "Sorry, something went wrong on my side. Please try again in a moment.";
-  } catch {
+  } catch (err) {
+    console.error("[chat] OpenAI: call failed", err);
     return NextResponse.json({
       ok: true,
       reply: "Sorry, something went wrong on my side. Please try again in a moment.",
     });
   }
 
-  // --- Persist: save assistant reply, update identity and summary ---
+  // ---------------------------------------------------------------------------
+  // 7. Save assistant reply
+  // ---------------------------------------------------------------------------
   if (visitor) {
     try {
       await prisma.conversationMessage.create({
         data: { visitorId: visitor.id, role: "assistant", content: reply },
       });
-
-      const identity = extractIdentity(message);
-      const topic = inferTopic(message);
-      const updatedSummary = buildUpdatedSummary(visitor.summary, topic);
-
-      const update: {
-        name?: string;
-        email?: string;
-        company?: string;
-        summary?: string;
-      } = {};
-
-      if (identity.name && !visitor.name) update.name = identity.name;
-      if (identity.email && !visitor.email) update.email = identity.email;
-      if (identity.company && !visitor.company) update.company = identity.company;
-      if (updatedSummary !== visitor.summary) update.summary = updatedSummary;
-
-      // Append "Introduced as" note when identity is first detected
-      if (identity.name || identity.email || identity.company) {
-        const who = [identity.name ?? visitor.name, identity.company ?? visitor.company]
-          .filter(Boolean)
-          .join(" from ");
-        if (who) {
-          const introLine = `Introduced as: ${who}`;
-          const current = update.summary ?? updatedSummary;
-          if (!current.includes("Introduced as:")) {
-            update.summary = `${current} | ${introLine}`.replace(/^\s*\|\s*/, "");
-          }
-        }
-      }
-
-      if (Object.keys(update).length > 0) {
-        visitor = await prisma.visitor.update({
-          where: { id: visitor.id },
-          data: update,
-          select: { id: true, name: true, email: true, company: true, summary: true },
-        });
-      }
-    } catch {
-      // Persistence failure must not break the reply
+    } catch (err) {
+      console.error("[chat] DB: failed to save assistant reply", err);
     }
   }
 
-  // --- Notify David via Telegram (non-fatal) ---
+  // ---------------------------------------------------------------------------
+  // 8. Update rolling summary (topic tracking)
+  // ---------------------------------------------------------------------------
+  if (visitor) {
+    try {
+      const topic = inferTopic(message);
+      const updatedSummary = buildUpdatedSummary(visitor.summary, topic);
+      if (updatedSummary !== visitor.summary) {
+        visitor = await prisma.visitor.update({
+          where: { id: visitor.id },
+          data: { summary: updatedSummary },
+          select: VISITOR_SELECT,
+        });
+        console.log(`[chat] visitor summary updated — "${visitor.summary}"`);
+      }
+    } catch (err) {
+      console.error("[chat] DB: failed to update visitor summary", err);
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // 9. Notify David via Telegram with fully updated visitor data
+  // ---------------------------------------------------------------------------
   try {
     await notifyTelegram(
       message,
       reply,
       visitor ?? { name: null, email: null, company: null, summary: null }
     );
-  } catch {
-    // Telegram failure must not affect the visitor
+  } catch (err) {
+    console.error("[chat] Telegram: notification failed", err);
   }
 
   return NextResponse.json({ ok: true, reply });

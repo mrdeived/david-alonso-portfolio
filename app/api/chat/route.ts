@@ -112,9 +112,11 @@ function extractIdentity(message: string): {
   const emailMatch = message.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
   if (emailMatch) result.email = emailMatch[0].toLowerCase();
 
-  // Name — case-insensitive match, then title-case the captured value
+  // Name — case-insensitive match, then title-case the captured value.
+  // The optional second word explicitly excludes common conjunctions/prepositions
+  // so "my name is David and I work" captures "David" not "David And".
   const nameMatch = message.match(
-    /(?:my name is|i'm|i am|call me)\s+([A-Za-z]+(?:\s+[A-Za-z]+)?)/i
+    /(?:my name is|i'm|i am|call me)\s+([A-Za-z]+(?:\s+(?!and\b|or\b|but\b|at\b|from\b|with\b|for\b|you\b)[A-Za-z]+)?)/i
   );
   if (nameMatch) {
     result.name = nameMatch[1]

@@ -1,4 +1,5 @@
 import Image from "next/image";
+import Navbar from "@/components/Navbar";
 import ProjectCard from "@/components/ProjectCard";
 
 const projects = [
@@ -55,21 +56,7 @@ const coursework = [
 export default function Home() {
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100">
-      {/* Nav */}
-      <header className="sticky top-0 z-10 border-b border-zinc-800/60 bg-zinc-950/80 backdrop-blur-sm">
-        <nav className="mx-auto flex max-w-4xl items-center justify-between px-6 py-4">
-          <span className="text-sm font-semibold tracking-wide text-zinc-100">
-            David Alonso
-          </span>
-          <div className="flex gap-6 text-sm text-zinc-400">
-            <a href="#about" className="transition-colors hover:text-zinc-100">About</a>
-            <a href="#education" className="transition-colors hover:text-zinc-100">Education</a>
-            <a href="#projects" className="transition-colors hover:text-zinc-100">Projects</a>
-            <a href="#skills" className="transition-colors hover:text-zinc-100">Skills</a>
-            <a href="#contact" className="transition-colors hover:text-zinc-100">Contact</a>
-          </div>
-        </nav>
-      </header>
+      <Navbar />
 
       <main>
         {/* Hero */}
@@ -77,13 +64,13 @@ export default function Home() {
           id="hero"
           className="mx-auto flex max-w-4xl flex-col gap-6 px-6 pb-24 pt-28"
         >
-          <div className="mb-2">
+          <div className="mb-4">
             <Image
               src="/profile.png"
               alt="David Alonso"
-              width={140}
-              height={140}
-              className="rounded-full border border-zinc-700 shadow-lg shadow-zinc-950/50"
+              width={260}
+              height={260}
+              className="drop-shadow-2xl"
               priority
             />
           </div>

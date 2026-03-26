@@ -5,6 +5,7 @@ type ProjectCardProps = {
   description: string;
   stack: string[];
   externalHref?: string;
+  githubHref?: string;
   detailsHref: string;
 };
 
@@ -13,6 +14,7 @@ export default function ProjectCard({
   description,
   stack,
   externalHref,
+  githubHref,
   detailsHref,
 }: ProjectCardProps) {
   return (
@@ -31,22 +33,32 @@ export default function ProjectCard({
           </span>
         ))}
       </div>
-      <div className="mt-auto flex flex-wrap gap-3">
+      <div className="mt-auto flex flex-wrap gap-2">
         {externalHref && (
           <a
             href={externalHref}
             target="_blank"
             rel="noopener noreferrer"
-            className="rounded-lg bg-blue-600 px-4 py-2 text-xs font-medium text-white transition-colors hover:bg-blue-500"
+            className="rounded-lg bg-blue-600 px-3.5 py-1.5 text-xs font-medium text-white transition-colors hover:bg-blue-500"
           >
-            View Project
+            Live App
+          </a>
+        )}
+        {githubHref && (
+          <a
+            href={githubHref}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="rounded-lg border border-zinc-700 px-3.5 py-1.5 text-xs font-medium text-zinc-300 transition-colors hover:border-zinc-500 hover:text-zinc-100"
+          >
+            GitHub
           </a>
         )}
         <Link
           href={detailsHref}
-          className="rounded-lg border border-zinc-700 px-4 py-2 text-xs font-medium text-zinc-300 transition-colors hover:border-zinc-500 hover:text-zinc-100"
+          className="rounded-lg border border-zinc-700 px-3.5 py-1.5 text-xs font-medium text-zinc-300 transition-colors hover:border-zinc-500 hover:text-zinc-100"
         >
-          View Details
+          Details
         </Link>
       </div>
     </article>

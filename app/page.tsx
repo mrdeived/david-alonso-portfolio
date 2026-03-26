@@ -1,3 +1,4 @@
+import Image from "next/image";
 import ProjectCard from "@/components/ProjectCard";
 
 const projects = [
@@ -7,6 +8,7 @@ const projects = [
       "A full-stack Progressive Web App designed to improve student engagement through campus events, social features, and daily games. Tracks user interactions and structures data for analytics and KPI monitoring.",
     stack: ["Next.js", "TypeScript", "PostgreSQL", "Tailwind CSS", "PWA"],
     externalHref: "https://msu-life-production.up.railway.app/home",
+    githubHref: "https://github.com/mrdeived/msu-life",
     detailsHref: "/projects/beaver-app",
   },
   {
@@ -21,6 +23,7 @@ const projects = [
     description:
       "End-to-end AI voice assistant interpreting spoken requests, retrieving structured information, and executing actions through real-time API integrations. Combines speech processing, LLM interpretation, SQL lookup, and calendar scheduling.",
     stack: ["Python", "LLM APIs", "SQL", "Speech Processing"],
+    githubHref: "https://github.com/mrdeived/project-jarvis",
     detailsHref: "/projects/ai-voice-assistant",
   },
 ];
@@ -62,6 +65,16 @@ export default function Home() {
           id="hero"
           className="mx-auto flex max-w-4xl flex-col gap-6 px-6 pb-24 pt-28"
         >
+          <div className="mb-2">
+            <Image
+              src="/profile.png"
+              alt="David Alonso"
+              width={140}
+              height={140}
+              className="rounded-full border border-zinc-700 shadow-lg shadow-zinc-950/50"
+              priority
+            />
+          </div>
           <p className="text-sm font-medium uppercase tracking-widest text-blue-400">
             Data Science · Analytics · Product
           </p>

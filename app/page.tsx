@@ -1,65 +1,196 @@
-import Image from "next/image";
+import ProjectCard from "@/components/ProjectCard";
+
+const projects = [
+  {
+    title: "Beaver App / MSU Life",
+    description:
+      "A full-stack Progressive Web App for university students to stay connected with campus life. Includes event discovery, social interactions, and daily engagement mechanics. Built with an analytics-first mindset — user behavior (likes, bookmarks, attendance) is captured and structured for KPI tracking and product insight generation.",
+    stack: ["Next.js", "TypeScript", "PostgreSQL", "Tailwind CSS", "PWA"],
+    href: null,
+  },
+  {
+    title: "Housing Price Analysis",
+    description:
+      "Exploratory and predictive analysis of residential housing data. Applied regression modeling to identify the key drivers of sale price, with clean visualizations designed to communicate findings clearly to a non-technical audience.",
+    stack: ["Python", "Pandas", "scikit-learn", "Matplotlib", "Jupyter"],
+    href: null,
+  },
+  {
+    title: "Early Anomaly Detection in Well Signals",
+    description:
+      "Machine learning pipeline for detecting anomalies in multivariate oil well sensor data. Designed to surface potential equipment issues before failure occurs, combining signal processing with classification models.",
+    stack: ["Python", "scikit-learn", "Pandas", "NumPy"],
+    href: null,
+  },
+];
+
+const skills = [
+  "SQL",
+  "Python",
+  "Power BI",
+  "PostgreSQL",
+  "Data Analysis",
+  "Data Visualization",
+  "Dashboarding",
+  "Product Analytics",
+  "Next.js",
+  "TypeScript",
+];
 
 export default function Home() {
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
+    <div className="min-h-screen bg-zinc-950 text-zinc-100">
+      {/* Nav */}
+      <header className="sticky top-0 z-10 border-b border-zinc-800/60 bg-zinc-950/80 backdrop-blur-sm">
+        <nav className="mx-auto flex max-w-4xl items-center justify-between px-6 py-4">
+          <span className="text-sm font-semibold tracking-wide text-zinc-100">
+            David Alonso
+          </span>
+          <div className="flex gap-6 text-sm text-zinc-400">
+            <a href="#about" className="hover:text-zinc-100 transition-colors">About</a>
+            <a href="#projects" className="hover:text-zinc-100 transition-colors">Projects</a>
+            <a href="#skills" className="hover:text-zinc-100 transition-colors">Skills</a>
+            <a href="#contact" className="hover:text-zinc-100 transition-colors">Contact</a>
+          </div>
+        </nav>
+      </header>
+
+      <main>
+        {/* Hero */}
+        <section
+          id="hero"
+          className="mx-auto flex max-w-4xl flex-col gap-6 px-6 pb-24 pt-28"
+        >
+          <p className="text-sm font-medium uppercase tracking-widest text-blue-400">
+            Data Science · Analytics · Product
           </p>
+          <h1 className="text-5xl font-bold leading-tight tracking-tight text-zinc-100 sm:text-6xl">
+            David Alonso
+          </h1>
+          <p className="max-w-xl text-lg leading-relaxed text-zinc-400">
+            Data Science student building analytics-focused products and
+            data-driven tools. I work across the full stack — from SQL queries
+            and Python models to interactive dashboards and user behavior
+            analysis.
+          </p>
+          <div className="flex flex-wrap gap-3 pt-2">
+            <a
+              href="#projects"
+              className="rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-blue-500"
+            >
+              View Projects
+            </a>
+            <a
+              href="#contact"
+              className="rounded-lg border border-zinc-700 px-5 py-2.5 text-sm font-medium text-zinc-300 transition-colors hover:border-zinc-500 hover:text-zinc-100"
+            >
+              Contact
+            </a>
+          </div>
+        </section>
+
+        {/* Divider */}
+        <div className="mx-auto max-w-4xl px-6">
+          <hr className="border-zinc-800" />
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+
+        {/* About */}
+        <section
+          id="about"
+          className="mx-auto max-w-4xl px-6 py-20"
+        >
+          <h2 className="mb-6 text-xs font-semibold uppercase tracking-widest text-zinc-500">
+            About
+          </h2>
+          <p className="max-w-2xl text-base leading-8 text-zinc-300">
+            I am a Data Science student at Minnesota State University Moorhead,
+            focused on building things that generate real insight. My work sits
+            at the intersection of software and analytics — I build products
+            that capture user behavior, then use that data to answer meaningful
+            questions. Whether it is a full-stack web app, a regression model,
+            or a Power BI dashboard, I care about making data useful and
+            decisions clearer.
+          </p>
+        </section>
+
+        {/* Divider */}
+        <div className="mx-auto max-w-4xl px-6">
+          <hr className="border-zinc-800" />
         </div>
+
+        {/* Projects */}
+        <section
+          id="projects"
+          className="mx-auto max-w-4xl px-6 py-20"
+        >
+          <h2 className="mb-8 text-xs font-semibold uppercase tracking-widest text-zinc-500">
+            Projects
+          </h2>
+          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+            {projects.map((project) => (
+              <ProjectCard key={project.title} {...project} />
+            ))}
+          </div>
+        </section>
+
+        {/* Divider */}
+        <div className="mx-auto max-w-4xl px-6">
+          <hr className="border-zinc-800" />
+        </div>
+
+        {/* Skills */}
+        <section
+          id="skills"
+          className="mx-auto max-w-4xl px-6 py-20"
+        >
+          <h2 className="mb-8 text-xs font-semibold uppercase tracking-widest text-zinc-500">
+            Skills
+          </h2>
+          <div className="flex flex-wrap gap-3">
+            {skills.map((skill) => (
+              <span
+                key={skill}
+                className="rounded-lg border border-zinc-800 bg-zinc-900 px-4 py-2 text-sm font-medium text-zinc-300"
+              >
+                {skill}
+              </span>
+            ))}
+          </div>
+        </section>
+
+        {/* Divider */}
+        <div className="mx-auto max-w-4xl px-6">
+          <hr className="border-zinc-800" />
+        </div>
+
+        {/* Contact */}
+        <section
+          id="contact"
+          className="mx-auto max-w-4xl px-6 py-20"
+        >
+          <h2 className="mb-6 text-xs font-semibold uppercase tracking-widest text-zinc-500">
+            Contact
+          </h2>
+          <p className="mb-5 max-w-lg text-base leading-8 text-zinc-300">
+            I am open to data analyst, BI, and product analytics roles as well
+            as internship opportunities. If you want to talk about data, a
+            project, or a potential collaboration — reach out.
+          </p>
+          <a
+            href="mailto:david.alonso@ndus.edu"
+            className="text-base font-medium text-blue-400 hover:text-blue-300 transition-colors"
+          >
+            david.alonso@ndus.edu
+          </a>
+        </section>
       </main>
+
+      {/* Footer */}
+      <footer className="border-t border-zinc-800">
+        <div className="mx-auto max-w-4xl px-6 py-6 text-sm text-zinc-600">
+          © {new Date().getFullYear()} David Alonso
+        </div>
+      </footer>
     </div>
   );
 }

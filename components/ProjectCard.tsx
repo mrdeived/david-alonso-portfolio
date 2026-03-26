@@ -1,11 +1,20 @@
+import Link from "next/link";
+
 type ProjectCardProps = {
   title: string;
   description: string;
   stack: string[];
-  href?: string | null;
+  externalHref?: string;
+  detailsHref: string;
 };
 
-export default function ProjectCard({ title, description, stack, href }: ProjectCardProps) {
+export default function ProjectCard({
+  title,
+  description,
+  stack,
+  externalHref,
+  detailsHref,
+}: ProjectCardProps) {
   return (
     <article className="flex flex-col gap-4 rounded-xl border border-zinc-800 bg-zinc-900 p-6 transition-colors hover:border-zinc-700">
       <div className="flex flex-col gap-2">
@@ -22,16 +31,24 @@ export default function ProjectCard({ title, description, stack, href }: Project
           </span>
         ))}
       </div>
-      {href && (
-        <a
-          href={href}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="mt-auto w-fit text-sm font-medium text-blue-400 hover:text-blue-300 transition-colors"
+      <div className="mt-auto flex flex-wrap gap-3">
+        {externalHref && (
+          <a
+            href={externalHref}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="rounded-lg bg-blue-600 px-4 py-2 text-xs font-medium text-white transition-colors hover:bg-blue-500"
+          >
+            View Project
+          </a>
+        )}
+        <Link
+          href={detailsHref}
+          className="rounded-lg border border-zinc-700 px-4 py-2 text-xs font-medium text-zinc-300 transition-colors hover:border-zinc-500 hover:text-zinc-100"
         >
-          View on GitHub →
-        </a>
-      )}
+          View Details
+        </Link>
+      </div>
     </article>
   );
 }

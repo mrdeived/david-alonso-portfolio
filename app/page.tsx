@@ -2,25 +2,26 @@ import ProjectCard from "@/components/ProjectCard";
 
 const projects = [
   {
-    title: "Beaver App / MSU Life",
+    title: "Beaver App",
     description:
-      "A full-stack Progressive Web App for university students to stay connected with campus life. Includes event discovery, social interactions, and daily engagement mechanics. Built with an analytics-first mindset — user behavior (likes, bookmarks, attendance) is captured and structured for KPI tracking and product insight generation.",
+      "A full-stack Progressive Web App designed to improve student engagement through campus events, social features, and daily games. Tracks user interactions and structures data for analytics and KPI monitoring.",
     stack: ["Next.js", "TypeScript", "PostgreSQL", "Tailwind CSS", "PWA"],
-    href: null,
+    externalHref: "https://msu-life-production.up.railway.app/home",
+    detailsHref: "/projects/beaver-app",
   },
   {
-    title: "Housing Price Analysis",
+    title: "Predictive Anomaly Detection in Multivariate Oil Well Sensor Data",
     description:
-      "Exploratory and predictive analysis of residential housing data. Applied regression modeling to identify the key drivers of sale price, with clean visualizations designed to communicate findings clearly to a non-technical audience.",
-    stack: ["Python", "Pandas", "scikit-learn", "Matplotlib", "Jupyter"],
-    href: null,
-  },
-  {
-    title: "Early Anomaly Detection in Well Signals",
-    description:
-      "Machine learning pipeline for detecting anomalies in multivariate oil well sensor data. Designed to surface potential equipment issues before failure occurs, combining signal processing with classification models.",
+      "Early anomaly detection model identifying abnormal patterns in operational data. Applied preprocessing, windowing, and feature-level analysis to support analytical interpretation of operational risk signals.",
     stack: ["Python", "scikit-learn", "Pandas", "NumPy"],
-    href: null,
+    detailsHref: "/projects/anomaly-detection",
+  },
+  {
+    title: "AI Voice Assistant",
+    description:
+      "End-to-end AI voice assistant interpreting spoken requests, retrieving structured information, and executing actions through real-time API integrations. Combines speech processing, LLM interpretation, SQL lookup, and calendar scheduling.",
+    stack: ["Python", "LLM APIs", "SQL", "Speech Processing"],
+    detailsHref: "/projects/ai-voice-assistant",
   },
 ];
 

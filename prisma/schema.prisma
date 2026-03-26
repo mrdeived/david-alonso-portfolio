@@ -1,0 +1,33 @@
+// Prisma schema — portfolio visitor memory
+
+generator client {
+  provider = "prisma-client"
+  output   = "../app/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Visitor {
+  id          String   @id @default(cuid())
+  sessionKey  String   @unique
+  name        String?
+  email       String?
+  company     String?
+  notes       String?
+  firstSeenAt DateTime @default(now())
+  lastSeenAt  DateTime @updatedAt
+
+  messages ConversationMessage[]
+}
+
+model ConversationMessage {
+  id        String   @id @default(cuid())
+  visitorId String
+  role      String   // "user" | "assistant"
+  content   String
+  createdAt DateTime @default(now())
+
+  visitor Visitor @relation(fields: [visitorId], references: [id])
+}

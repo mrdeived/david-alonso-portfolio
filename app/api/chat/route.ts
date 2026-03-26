@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import OpenAI from "openai";
+import { prisma } from "@/lib/prisma";
 
 // ---------------------------------------------------------------------------
 // System prompt — conversational guide to David's portfolio
 // ---------------------------------------------------------------------------
-const SYSTEM_PROMPT = `You are a friendly guide for David Alonso's portfolio. Visitors ask you questions about David — his background, projects, skills, and career interests.
+const BASE_SYSTEM_PROMPT = `You are a friendly guide for David Alonso's portfolio. Visitors ask you questions about David — his background, projects, skills, and career interests.
 
 Keep your answers short and natural. 2–4 sentences is usually enough. Don't dump everything you know — just answer what was asked. Avoid bullet lists unless the question clearly calls for one. Sound like a real person helping out, not a formal document.
 
@@ -40,7 +41,23 @@ David's contact info (email, LinkedIn, GitHub) is in the contact section of his 
 - If asked for contact details, point to the contact section.`;
 
 // ---------------------------------------------------------------------------
-// Lightweight keyword-based topic label for Telegram
+// Visitor context block appended to system prompt when known info exists
+// ---------------------------------------------------------------------------
+function buildVisitorContext(visitor: {
+  name: string | null;
+  company: string | null;
+  notes: string | null;
+}): string {
+  const lines: string[] = [];
+  if (visitor.name) lines.push(`Name: ${visitor.name}`);
+  if (visitor.company) lines.push(`Company: ${visitor.company}`);
+  if (visitor.notes) lines.push(`Context: ${visitor.notes}`);
+  if (lines.length === 0) return "";
+  return `\n\n--- VISITOR CONTEXT ---\nYou already know this about the person you're talking to:\n${lines.join("\n")}\nUse this naturally in your replies when relevant. Don't repeat it back verbatim.`;
+}
+
+// ---------------------------------------------------------------------------
+// Lightweight keyword-based topic label
 // ---------------------------------------------------------------------------
 function inferTopic(message: string): string {
   const m = message.toLowerCase();
@@ -56,22 +73,95 @@ function inferTopic(message: string): string {
 }
 
 // ---------------------------------------------------------------------------
+// Update rolling notes/summary for the visitor
+// ---------------------------------------------------------------------------
+function buildUpdatedNotes(existing: string | null, topic: string): string {
+  if (topic === "General") return existing ?? "";
+
+  const topicsMatch = existing?.match(/Topics: ([^|]+)/);
+  const existingTopics = topicsMatch
+    ? topicsMatch[1].split(",").map((t) => t.trim()).filter(Boolean)
+    : [];
+
+  if (!existingTopics.includes(topic)) {
+    existingTopics.push(topic);
+  }
+
+  const topicsPart = `Topics: ${existingTopics.join(", ")}`;
+
+  // Preserve anything after the topics section (e.g. "Introduced as: ...")
+  const rest = existing?.replace(/Topics: [^|]+\|?/, "").trim() ?? "";
+  return rest ? `${topicsPart} | ${rest}` : topicsPart;
+}
+
+// ---------------------------------------------------------------------------
+// Lightweight identity extraction from a single message
+// ---------------------------------------------------------------------------
+function extractIdentity(message: string): {
+  name?: string;
+  email?: string;
+  company?: string;
+} {
+  const result: { name?: string; email?: string; company?: string } = {};
+
+  // Email
+  const emailMatch = message.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
+  if (emailMatch) result.email = emailMatch[0].toLowerCase();
+
+  // Name: "my name is X", "I'm X", "I am X", "call me X", "this is X"
+  const nameMatch = message.match(
+    /(?:my name is|i'm|i am|call me|this is)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)/
+  );
+  if (nameMatch) result.name = nameMatch[1].trim();
+
+  // Company: "from X Corp", "at Acme", "I work at X" — best effort, proper noun only
+  const companyMatch = message.match(
+    /(?:from|at|with|work(?:ing)? (?:for|at))\s+([A-Z][A-Za-z0-9\s&]+?)(?:\s*[,.]|\s+and\b|$)/
+  );
+  if (companyMatch) {
+    const candidate = companyMatch[1].trim();
+    // Skip single common words that are likely not company names
+    const skip = new Set(["home", "school", "work", "here", "there", "the"]);
+    if (candidate.length > 2 && !skip.has(candidate.toLowerCase())) {
+      result.company = candidate;
+    }
+  }
+
+  return result;
+}
+
+// ---------------------------------------------------------------------------
 // Telegram notification (non-fatal)
 // ---------------------------------------------------------------------------
 async function notifyTelegram(
   message: string,
-  reply: string
+  reply: string,
+  visitor: { name: string | null; email: string | null; company: string | null; notes: string | null }
 ): Promise<void> {
   const token = process.env.TELEGRAM_BOT_TOKEN;
   const chatId = process.env.TELEGRAM_CHAT_ID;
-
   if (!token || !chatId) return;
 
-  const topic = inferTopic(message);
+  const visitorLines: string[] = [];
+  if (visitor.name) visitorLines.push(`  Name: ${visitor.name}`);
+  if (visitor.email) visitorLines.push(`  Email: ${visitor.email}`);
+  if (visitor.company) visitorLines.push(`  Company: ${visitor.company}`);
+
+  const visitorBlock =
+    visitorLines.length > 0
+      ? `Visitor:\n${visitorLines.join("\n")}\n\n`
+      : "Visitor: Unknown\n\n";
+
+  const summaryBlock = visitor.notes
+    ? `\nSummary:\n${visitor.notes}`
+    : "";
+
   const text =
-    `New portfolio chat — Topic: ${topic}\n\n` +
-    `Visitor asked:\n"${message}"\n\n` +
-    `Assistant replied:\n"${reply}"`;
+    `New portfolio chat\n\n` +
+    visitorBlock +
+    `Latest message:\n"${message}"\n\n` +
+    `Assistant reply:\n"${reply}"` +
+    summaryBlock;
 
   await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
     method: "POST",
@@ -113,9 +203,7 @@ export async function POST(request: NextRequest) {
   const raw = body as Record<string, unknown>;
 
   // Validate message
-  const message =
-    typeof raw.message === "string" ? raw.message.trim() : null;
-
+  const message = typeof raw.message === "string" ? raw.message.trim() : null;
   if (!message) {
     return NextResponse.json(
       { ok: false, error: "Missing or empty 'message' field" },
@@ -123,7 +211,17 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // Parse optional history (last 8 turns max)
+  // Validate sessionKey
+  const sessionKey =
+    typeof raw.sessionKey === "string" ? raw.sessionKey.trim() : null;
+  if (!sessionKey) {
+    return NextResponse.json(
+      { ok: false, error: "Missing 'sessionKey' field" },
+      { status: 400 }
+    );
+  }
+
+  // Parse optional conversation history (last 8 turns)
   const rawHistory = Array.isArray(raw.history) ? raw.history : [];
   const history: HistoryEntry[] = rawHistory
     .filter(
@@ -144,14 +242,38 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // Build message list: system + history + current user message
-  const openaiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
-    { role: "system", content: SYSTEM_PROMPT },
-    ...history,
-    { role: "user", content: message },
-  ];
+  // --- Persist: find or create visitor, save user message ---
+  let visitor: {
+    id: string;
+    name: string | null;
+    email: string | null;
+    company: string | null;
+    notes: string | null;
+  } | null = null;
 
-  // Generate reply
+  try {
+    visitor = await prisma.visitor.upsert({
+      where: { sessionKey },
+      create: { sessionKey },
+      update: { lastSeenAt: new Date() },
+      select: { id: true, name: true, email: true, company: true, notes: true },
+    });
+
+    await prisma.conversationMessage.create({
+      data: { visitorId: visitor.id, role: "user", content: message },
+    });
+  } catch {
+    // DB failure is non-fatal — continue to generate reply
+  }
+
+  // --- Build system prompt, optionally enriched with visitor context ---
+  let systemPrompt = BASE_SYSTEM_PROMPT;
+  if (visitor) {
+    const ctx = buildVisitorContext(visitor);
+    if (ctx) systemPrompt += ctx;
+  }
+
+  // --- Generate OpenAI reply ---
   let reply: string;
   try {
     const openai = new OpenAI({ apiKey });
@@ -160,7 +282,11 @@ export async function POST(request: NextRequest) {
       model: "gpt-4o-mini",
       temperature: 0.6,
       max_tokens: 200,
-      messages: openaiMessages,
+      messages: [
+        { role: "system", content: systemPrompt },
+        ...history,
+        { role: "user", content: message },
+      ],
     });
 
     reply =
@@ -173,9 +299,62 @@ export async function POST(request: NextRequest) {
     });
   }
 
-  // Notify David via Telegram (non-fatal)
+  // --- Persist: save assistant reply, update visitor identity & notes ---
+  if (visitor) {
+    try {
+      // Save assistant reply
+      await prisma.conversationMessage.create({
+        data: { visitorId: visitor.id, role: "assistant", content: reply },
+      });
+
+      // Extract identity hints from the user's message
+      const identity = extractIdentity(message);
+
+      // Update rolling notes/summary
+      const topic = inferTopic(message);
+      const updatedNotes = buildUpdatedNotes(visitor.notes, topic);
+
+      // Build the identity update — only overwrite if we have something new and field is empty
+      const identityUpdate: {
+        name?: string;
+        email?: string;
+        company?: string;
+        notes?: string;
+      } = {};
+      if (identity.name && !visitor.name) identityUpdate.name = identity.name;
+      if (identity.email && !visitor.email) identityUpdate.email = identity.email;
+      if (identity.company && !visitor.company) identityUpdate.company = identity.company;
+      if (updatedNotes !== visitor.notes) identityUpdate.notes = updatedNotes;
+
+      // Also note in visitor.notes if they introduced themselves (for Telegram display)
+      if (identity.name || identity.email || identity.company) {
+        const who = [identity.name ?? visitor.name, identity.company ?? visitor.company]
+          .filter(Boolean)
+          .join(" from ");
+        if (who) {
+          const introLine = `Introduced as: ${who}`;
+          const currentNotes = identityUpdate.notes ?? updatedNotes;
+          if (!currentNotes.includes("Introduced as:")) {
+            identityUpdate.notes = `${currentNotes} | ${introLine}`.replace(/^\s*\|\s*/, "");
+          }
+        }
+      }
+
+      if (Object.keys(identityUpdate).length > 0) {
+        visitor = await prisma.visitor.update({
+          where: { id: visitor.id },
+          data: identityUpdate,
+          select: { id: true, name: true, email: true, company: true, notes: true },
+        });
+      }
+    } catch {
+      // Persistence failure must not break the reply
+    }
+  }
+
+  // --- Notify David via Telegram (non-fatal) ---
   try {
-    await notifyTelegram(message, reply);
+    await notifyTelegram(message, reply, visitor ?? { name: null, email: null, company: null, notes: null });
   } catch {
     // Telegram failure must not affect the visitor
   }

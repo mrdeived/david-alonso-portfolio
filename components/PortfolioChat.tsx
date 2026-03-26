@@ -2,6 +2,21 @@
 
 import { useEffect, useRef, useState } from "react";
 
+const SESSION_KEY_STORAGE = "portfolio_session_key";
+
+function getOrCreateSessionKey(): string {
+  try {
+    const existing = localStorage.getItem(SESSION_KEY_STORAGE);
+    if (existing) return existing;
+    const key = crypto.randomUUID();
+    localStorage.setItem(SESSION_KEY_STORAGE, key);
+    return key;
+  } catch {
+    // localStorage unavailable (e.g. SSR guard) — return a one-time key
+    return crypto.randomUUID();
+  }
+}
+
 interface Message {
   role: "user" | "assistant";
   text: string;
@@ -19,6 +34,11 @@ export default function PortfolioChat() {
   const [loading, setLoading] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const sessionKey = useRef<string | null>(null);
+
+  useEffect(() => {
+    sessionKey.current = getOrCreateSessionKey();
+  }, []);
 
   useEffect(() => {
     if (open) {
@@ -48,7 +68,11 @@ export default function PortfolioChat() {
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: text, history }),
+        body: JSON.stringify({
+          message: text,
+          history,
+          sessionKey: sessionKey.current ?? "",
+        }),
       });
 
       const data = (await res.json()) as { ok: boolean; reply?: string };

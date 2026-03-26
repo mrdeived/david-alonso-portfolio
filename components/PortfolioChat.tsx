@@ -31,15 +31,24 @@ export default function PortfolioChat() {
     const text = input.trim();
     if (!text || loading) return;
 
-    setMessages((prev) => [...prev, { role: "user", text }]);
+    const updatedMessages: Message[] = [
+      ...messages,
+      { role: "user", text },
+    ];
+    setMessages(updatedMessages);
     setInput("");
     setLoading(true);
+
+    // Build history for the API: exclude the initial greeting and the new message
+    const history = updatedMessages
+      .slice(1, -1) // skip the pre-loaded greeting and the message we just added
+      .map((m) => ({ role: m.role, content: m.text }));
 
     try {
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: text }),
+        body: JSON.stringify({ message: text, history }),
       });
 
       const data = (await res.json()) as { ok: boolean; reply?: string };

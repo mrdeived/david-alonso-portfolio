@@ -2,55 +2,75 @@ import { NextRequest, NextResponse } from "next/server";
 import OpenAI from "openai";
 
 // ---------------------------------------------------------------------------
-// Portfolio context — factual information fed to the model as a system prompt
+// System prompt — conversational guide to David's portfolio
 // ---------------------------------------------------------------------------
-const SYSTEM_PROMPT = `You are a portfolio assistant for David Alonso. Your only job is to answer questions about David — his background, education, projects, skills, and career interests. Be helpful, concise, and professional. Sound human, not robotic. Do not invent facts. If information is not covered below, say it is not available in the portfolio.
+const SYSTEM_PROMPT = `You are a friendly guide for David Alonso's portfolio. Visitors ask you questions about David — his background, projects, skills, and career interests.
+
+Keep your answers short and natural. 2–4 sentences is usually enough. Don't dump everything you know — just answer what was asked. Avoid bullet lists unless the question clearly calls for one. Sound like a real person helping out, not a formal document.
+
+If you don't know something, say so simply. Don't make up facts.
 
 --- ABOUT DAVID ---
-David Alonso is a Data Science student at Minot State University (Minot, North Dakota), pursuing a B.S. in Data Science with a Minor in Computer Science. He also has a prior background in Industrial Engineering from Universidad Americana in Asunción, Paraguay.
+David is a Data Science student at Minot State University (Minot, North Dakota), finishing a B.S. in Data Science with a Minor in Computer Science. GPA: 3.674. He also studied Industrial Engineering at Universidad Americana in Paraguay before moving to the US.
 
-His core interests are data analytics, business intelligence, product analytics, user behavior analysis, and building data-driven applications. He is actively looking for data analyst, BI, and product analytics roles, as well as internship opportunities.
+He's interested in data analytics, BI, product analytics, and building data-driven products. He's looking for analyst, BI, or product/data-focused roles and internships.
 
 --- PROJECTS ---
 
-1. Beaver App
-A full-stack Progressive Web App built to improve student engagement at a university campus. Features include campus events, social features, and daily games. The app captures user interactions (likes, bookmarks, attendance) and is designed with analytics and KPI monitoring in mind. It has a live deployment and a public GitHub repository.
-Stack: Next.js, TypeScript, PostgreSQL, Tailwind CSS, PWA.
+Beaver App — A full-stack PWA he built to improve student engagement on campus. It has events, social features, and daily games, and tracks user interactions (likes, bookmarks, attendance) with analytics and KPI monitoring in mind. Live app + public GitHub.
+Stack: Next.js, TypeScript, PostgreSQL, Tailwind CSS.
 
-2. Predictive Anomaly Detection in Multivariate Oil Well Sensor Data
-David's Data Science capstone project. An early anomaly detection model that identifies abnormal patterns in operational oil well sensor data. It uses preprocessing, time-series windowing, and feature-level analysis to surface operational risk signals.
+Anomaly Detection — His Data Science capstone. An early anomaly detection model for oil well sensor data that flags operational risk signals using preprocessing, time-series windowing, and feature analysis.
 Stack: Python, scikit-learn, Pandas, NumPy.
 
-3. AI Voice Assistant
-An end-to-end voice assistant that interprets spoken requests, retrieves structured information via SQL, and executes actions through real-time API integrations. Capabilities include speech processing, LLM-based intent interpretation, contact lookup, automated phone calls, and calendar scheduling. Presented at an academic showcase.
+AI Voice Assistant — An end-to-end voice assistant that takes spoken requests and executes them: SQL-backed contact lookup, automated calls, calendar scheduling. Presented at an academic showcase. Public GitHub.
 Stack: Python, LLM APIs, SQL, Speech Processing.
-Public GitHub repository available.
 
 --- SKILLS ---
 SQL, Python, Power BI, PostgreSQL, Data Analysis, Data Visualization, Dashboarding, Product Analytics, Next.js, TypeScript.
 
 --- CONTACT ---
-David can be reached through the contact section of his portfolio. He has a LinkedIn profile, a GitHub profile, and email addresses listed on the site. Encourage visitors to use those.
+David's contact info (email, LinkedIn, GitHub) is in the contact section of his portfolio. Point visitors there.
 
---- BEHAVIOR RULES ---
-- Only answer questions about David Alonso and his portfolio.
-- If asked about job interest, confirm he is open to analytics, BI, product/data-focused roles, and internships.
-- If asked for contact details, direct the visitor to the contact section of the portfolio.
-- Keep answers concise — one to three short paragraphs at most.
-- Do not make up projects, skills, or facts not listed above.`;
+--- RULES ---
+- Only answer about David and his portfolio.
+- Keep it conversational and concise.
+- Don't repeat info the visitor didn't ask about.
+- If asked about jobs, say he's open to analytics, BI, and product/data roles.
+- If asked for contact details, point to the contact section.`;
+
+// ---------------------------------------------------------------------------
+// Lightweight keyword-based topic label for Telegram
+// ---------------------------------------------------------------------------
+function inferTopic(message: string): string {
+  const m = message.toLowerCase();
+  if (m.includes("beaver") || m.includes("pwa") || m.includes("campus")) return "Beaver App";
+  if (m.includes("anomaly") || m.includes("oil") || m.includes("sensor") || m.includes("capstone")) return "Anomaly Detection";
+  if (m.includes("voice") || m.includes("assistant") || m.includes("jarvis") || m.includes("speech")) return "AI Voice Assistant";
+  if (m.includes("education") || m.includes("university") || m.includes("degree") || m.includes("gpa") || m.includes("minot") || m.includes("study")) return "Education";
+  if (m.includes("skill") || m.includes("stack") || m.includes("tech") || m.includes("python") || m.includes("sql") || m.includes("power bi")) return "Skills";
+  if (m.includes("job") || m.includes("role") || m.includes("hire") || m.includes("work") || m.includes("intern") || m.includes("opportunit")) return "Job Interests";
+  if (m.includes("contact") || m.includes("email") || m.includes("reach") || m.includes("linkedin")) return "Contact";
+  if (m.includes("project") || m.includes("built") || m.includes("portfolio")) return "Projects";
+  return "General";
+}
 
 // ---------------------------------------------------------------------------
 // Telegram notification (non-fatal)
 // ---------------------------------------------------------------------------
-async function notifyTelegram(message: string, reply: string): Promise<void> {
+async function notifyTelegram(
+  message: string,
+  reply: string
+): Promise<void> {
   const token = process.env.TELEGRAM_BOT_TOKEN;
   const chatId = process.env.TELEGRAM_CHAT_ID;
 
   if (!token || !chatId) return;
 
+  const topic = inferTopic(message);
   const text =
-    `New portfolio chat message\n\n` +
-    `User said:\n"${message}"\n\n` +
+    `New portfolio chat — Topic: ${topic}\n\n` +
+    `Visitor asked:\n"${message}"\n\n` +
     `Assistant replied:\n"${reply}"`;
 
   await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
@@ -58,6 +78,14 @@ async function notifyTelegram(message: string, reply: string): Promise<void> {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ chat_id: chatId, text }),
   });
+}
+
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
+interface HistoryEntry {
+  role: "user" | "assistant";
+  content: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -75,14 +103,18 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // Validate message field
+  if (body === null || typeof body !== "object") {
+    return NextResponse.json(
+      { ok: false, error: "Invalid request body" },
+      { status: 400 }
+    );
+  }
+
+  const raw = body as Record<string, unknown>;
+
+  // Validate message
   const message =
-    body !== null &&
-    typeof body === "object" &&
-    "message" in body &&
-    typeof (body as Record<string, unknown>).message === "string"
-      ? ((body as Record<string, string>).message as string).trim()
-      : null;
+    typeof raw.message === "string" ? raw.message.trim() : null;
 
   if (!message) {
     return NextResponse.json(
@@ -90,6 +122,18 @@ export async function POST(request: NextRequest) {
       { status: 400 }
     );
   }
+
+  // Parse optional history (last 8 turns max)
+  const rawHistory = Array.isArray(raw.history) ? raw.history : [];
+  const history: HistoryEntry[] = rawHistory
+    .filter(
+      (e): e is HistoryEntry =>
+        e !== null &&
+        typeof e === "object" &&
+        (e.role === "user" || e.role === "assistant") &&
+        typeof e.content === "string"
+    )
+    .slice(-8);
 
   // Require OpenAI key
   const apiKey = process.env.OPENAI_API_KEY;
@@ -100,6 +144,13 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  // Build message list: system + history + current user message
+  const openaiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
+    { role: "system", content: SYSTEM_PROMPT },
+    ...history,
+    { role: "user", content: message },
+  ];
+
   // Generate reply
   let reply: string;
   try {
@@ -107,25 +158,19 @@ export async function POST(request: NextRequest) {
 
     const completion = await openai.chat.completions.create({
       model: "gpt-4o-mini",
-      temperature: 0.5,
-      max_tokens: 300,
-      messages: [
-        { role: "system", content: SYSTEM_PROMPT },
-        { role: "user", content: message },
-      ],
+      temperature: 0.6,
+      max_tokens: 200,
+      messages: openaiMessages,
     });
 
     reply =
       completion.choices[0]?.message?.content?.trim() ??
-      "Sorry, I'm having trouble answering right now. Please try again in a moment.";
+      "Sorry, something went wrong on my side. Please try again in a moment.";
   } catch {
-    return NextResponse.json(
-      {
-        ok: true,
-        reply:
-          "Sorry, I'm having trouble answering right now. Please try again in a moment.",
-      }
-    );
+    return NextResponse.json({
+      ok: true,
+      reply: "Sorry, something went wrong on my side. Please try again in a moment.",
+    });
   }
 
   // Notify David via Telegram (non-fatal)

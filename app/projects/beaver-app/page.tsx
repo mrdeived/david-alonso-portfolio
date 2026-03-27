@@ -1,4 +1,6 @@
+import Image from "next/image";
 import Link from "next/link";
+import { Github } from "lucide-react";
 
 export const metadata = {
   title: "Beaver App — David Alonso",
@@ -23,7 +25,7 @@ export default function BeaverAppPage() {
         <h1 className="mb-6 text-4xl font-bold tracking-tight text-zinc-100 sm:text-5xl">
           Beaver App
         </h1>
-        <p className="mb-12 text-lg leading-relaxed text-zinc-400">
+        <p className="mb-8 text-lg leading-relaxed text-zinc-400">
           Beaver App is a Progressive Web App built for students at Minnesota
           State University Moorhead. It brings together campus events, social
           interactions, and daily engagement games — all designed with user
@@ -31,14 +33,35 @@ export default function BeaverAppPage() {
           useful for analytics and product decisions.
         </p>
 
-        <a
-          href="https://msu-life-production.up.railway.app/home"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="mb-14 inline-block rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-blue-500"
-        >
-          View Live App
-        </a>
+        <figure className="mb-8 overflow-hidden rounded-xl border border-zinc-800">
+          <Image
+            src="/projects/beaver-app.png"
+            alt="Beaver App screenshot"
+            width={1200}
+            height={800}
+            className="w-full object-cover"
+          />
+        </figure>
+
+        <div className="mb-14 flex flex-wrap gap-3">
+          <a
+            href="https://msu-life-production.up.railway.app/home"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-block rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-blue-500"
+          >
+            View Live App
+          </a>
+          <a
+            href="https://github.com/mrdeived/msu-life"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-2 rounded-lg border border-zinc-700 px-5 py-2.5 text-sm font-medium text-zinc-300 transition-colors hover:border-zinc-500 hover:text-zinc-100"
+          >
+            <Github size={16} />
+            View on GitHub
+          </a>
+        </div>
 
         <div className="space-y-14">
           <section>

@@ -1,6 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
-import { Github } from "lucide-react";
+import { GitFork } from "lucide-react";
 
 export const metadata = {
   title: "Beaver App — David Alonso",
@@ -58,7 +58,7 @@ export default function BeaverAppPage() {
             rel="noopener noreferrer"
             className="inline-flex items-center gap-2 rounded-lg border border-zinc-700 px-5 py-2.5 text-sm font-medium text-zinc-300 transition-colors hover:border-zinc-500 hover:text-zinc-100"
           >
-            <Github size={16} />
+            <GitFork size={16} />
             View on GitHub
           </a>
         </div>

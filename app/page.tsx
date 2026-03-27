@@ -26,7 +26,7 @@ const projects = [
     description:
       "End-to-end AI voice assistant interpreting spoken requests, retrieving structured information, and executing actions through real-time API integrations. Combines speech processing, LLM interpretation, SQL lookup, and calendar scheduling.",
     stack: ["Python", "LLM APIs", "SQL", "Speech Processing"],
-    imageSrc: "/projects/ai-voice-assistant.png",
+    imageSrc: "/projects/VoiceAssistant.png",
     githubHref: "https://github.com/mrdeived/project-jarvis",
     detailsHref: "/projects/ai-voice-assistant",
   },
@@ -182,10 +182,9 @@ export default function Home() {
                 </h3>
                 <span className="text-xs text-zinc-500">Minot, North Dakota</span>
               </div>
-              <p className="mb-0.5 text-sm text-zinc-300">
+              <p className="text-sm text-zinc-300">
                 B.S. in Data Science — Minor in Computer Science
               </p>
-              <p className="text-sm text-zinc-500">Cumulative GPA: 3.674</p>
             </div>
             {/* Universidad Americana */}
             <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-6">
@@ -201,23 +200,6 @@ export default function Home() {
             </div>
           </div>
 
-          {/* Relevant Coursework */}
-          <div className="mt-10">
-            <h3 className="mb-4 text-xs font-semibold uppercase tracking-widest text-zinc-500">
-              Relevant Coursework
-            </h3>
-            <ul className="flex flex-col gap-1.5">
-              {coursework.map((course) => (
-                <li
-                  key={course}
-                  className="flex items-center gap-2 text-sm text-zinc-400"
-                >
-                  <span className="text-zinc-600">•</span>
-                  {course}
-                </li>
-              ))}
-            </ul>
-          </div>
         </section>
 
         {/* Divider */}
@@ -242,20 +224,43 @@ export default function Home() {
           <hr className="border-zinc-800" />
         </div>
 
-        {/* Skills */}
+        {/* Skills & Coursework — two-column layout */}
         <section id="skills" className="mx-auto max-w-4xl px-6 py-20">
-          <h2 className="mb-8 text-xs font-semibold uppercase tracking-widest text-zinc-500">
-            Skills
-          </h2>
-          <div className="flex flex-wrap gap-3">
-            {skills.map((skill) => (
-              <span
-                key={skill}
-                className="rounded-lg border border-zinc-800 bg-zinc-900 px-4 py-2 text-sm font-medium text-zinc-300"
-              >
-                {skill}
-              </span>
-            ))}
+          <div className="grid gap-12 sm:grid-cols-2">
+            {/* Left: Skills */}
+            <div>
+              <h2 className="mb-6 text-xs font-semibold uppercase tracking-widest text-zinc-500">
+                Skills
+              </h2>
+              <ul className="flex flex-col gap-2">
+                {skills.map((skill) => (
+                  <li
+                    key={skill}
+                    className="flex items-center gap-2 text-sm text-zinc-300"
+                  >
+                    <span className="text-zinc-600">•</span>
+                    {skill}
+                  </li>
+                ))}
+              </ul>
+            </div>
+            {/* Right: Relevant Coursework */}
+            <div>
+              <h2 className="mb-6 text-xs font-semibold uppercase tracking-widest text-zinc-500">
+                Relevant Coursework
+              </h2>
+              <ul className="flex flex-col gap-2">
+                {coursework.map((course) => (
+                  <li
+                    key={course}
+                    className="flex items-center gap-2 text-sm text-zinc-300"
+                  >
+                    <span className="text-zinc-600">•</span>
+                    {course}
+                  </li>
+                ))}
+              </ul>
+            </div>
           </div>
         </section>
 
